@@ -1,0 +1,1778 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Block Blast — Приключение</title>
+  <meta name="color-scheme" content="dark" />
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <style>
+    :root{
+      --bg0:#05070f;
+      --bg1:#0b1024;
+      --panel:rgba(255,255,255,.06);
+      --panel2:rgba(255,255,255,.09);
+      --grid:rgba(255,255,255,.09);
+      --grid2:rgba(255,255,255,.05);
+      --good:#34d399;
+      --bad:#fb7185;
+      --warn:#fbbf24;
+      --accent:#60a5fa;
+      --cell: clamp(28px, min(4.35vw, 5.25vh), 52px);
+      --radius: 18px;
+      --shadow: 0 18px 45px rgba(0,0,0,.45);
+      --ui: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Noto Sans", "Liberation Sans", sans-serif;
+    }
+
+    html, body { height: 100%; }
+    body{
+      font-family: var(--ui);
+      background:
+        radial-gradient(1200px 700px at 15% 10%, rgba(96,165,250,.16), rgba(0,0,0,0) 58%),
+        radial-gradient(900px 700px at 85% 25%, rgba(52,211,153,.10), rgba(0,0,0,0) 60%),
+        radial-gradient(700px 700px at 60% 85%, rgba(251,113,133,.12), rgba(0,0,0,0) 62%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      overflow-x:hidden;
+    }
+
+    /* Glass panels */
+    .glass{
+      background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,.05));
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+    }
+
+    .btn{
+      transition: transform .08s ease, filter .2s ease, background-color .2s ease;
+      will-change: transform;
+    }
+    .btn:active{ transform: translateY(1px) scale(.99); }
+
+    /* Board */
+    #boardWrap{
+      border-radius: calc(var(--radius) + 6px);
+      background: linear-gradient(180deg, rgba(255,255,255,.06), rgba(255,255,255,.03));
+      border: 1px solid rgba(255,255,255,.10);
+      box-shadow: 0 18px 70px rgba(0,0,0,.55);
+      position: relative;
+      overflow:hidden;
+    }
+
+    #board{
+      display:grid;
+      grid-template-columns: repeat(10, var(--cell));
+      grid-template-rows: repeat(10, var(--cell));
+      gap: 8px;
+      padding: 16px;
+      user-select:none;
+      touch-action:none;
+    }
+
+    .cell{
+      width: var(--cell);
+      height: var(--cell);
+      border-radius: 12px;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02));
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.08),
+        0 8px 18px rgba(0,0,0,.16);
+      transition: transform 120ms ease, filter 140ms ease, border-color 200ms ease, box-shadow 200ms ease;
+      will-change: transform, filter;
+    }
+    .cell.filled{
+      border-color: rgba(255,255,255,.18);
+      background:
+        radial-gradient(circle at 30% 25%, rgba(255,255,255,.35), rgba(255,255,255,0) 48%),
+        linear-gradient(135deg, var(--c1), var(--c2));
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,.16),
+        0 14px 26px rgba(0,0,0,.25);
+      transform: translateZ(0);
+    }
+    .cell.justPlaced{ animation: placePop 170ms ease-out both; }
+
+    .cell.previewValid{
+      outline: 2px solid rgba(52,211,153,.9);
+      filter: brightness(1.18);
+      transform: translateY(-1px) scale(1.02);
+    }
+    .cell.previewInvalid{
+      outline: 2px solid rgba(251,113,133,.95);
+      filter: brightness(.9) saturate(1.2);
+      transform: translateY(1px) scale(.98);
+    }
+    .cell.clearing{ animation: clearPop 300ms ease both; }
+
+    @keyframes placePop{
+      0%{ transform: scale(.75); filter: brightness(.9); }
+      60%{ transform: scale(1.06); filter: brightness(1.15); }
+      100%{ transform: scale(1); filter: brightness(1.0); }
+    }
+    @keyframes clearPop{
+      0%{ transform: scale(1); filter: brightness(1) saturate(1); opacity:1; }
+      55%{ transform: scale(1.12); filter: brightness(1.7) saturate(1.25); opacity:1; }
+      100%{ transform: scale(.2); filter: brightness(2.1) saturate(1.35); opacity:0; }
+    }
+
+    /* Pieces */
+    .piece{
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.10);
+      background: rgba(255,255,255,.06);
+      box-shadow: 0 14px 28px rgba(0,0,0,.25);
+      padding: 10px;
+      position: relative;
+      transform: translateZ(0);
+      transition: transform .18s ease, filter .18s ease, opacity .18s ease;
+      touch-action:none;
+      user-select:none;
+    }
+    .piece:hover{ filter: brightness(1.05); transform: translateY(-2px); }
+    .piece.used{ opacity:.22; filter: grayscale(.6); transform: scale(.98); }
+
+    .pieceGrid{
+      display:grid;
+      gap: 6px;
+      justify-content:center;
+      align-content:center;
+    }
+
+    .pCell{
+      width: calc(var(--cell) * .56);
+      height: calc(var(--cell) * .56);
+      border-radius: 10px;
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+    }
+    .pCell.filled{
+      background:
+        radial-gradient(circle at 30% 25%, rgba(255,255,255,.35), rgba(255,255,255,0) 50%),
+        linear-gradient(135deg, var(--c1), var(--c2));
+      border-color: rgba(255,255,255,.20);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.16), 0 8px 16px rgba(0,0,0,.22);
+    }
+
+    /* Drag ghost */
+    #ghost{
+      position: fixed;
+      left: 0; top: 0;
+      z-index: 80;
+      pointer-events:none;
+      transform-origin: center;
+      filter: drop-shadow(0 26px 55px rgba(0,0,0,.55));
+      opacity: .96;
+      will-change: transform;
+    }
+    .ghostFloat{ animation: ghostIn 140ms ease-out both; }
+    @keyframes ghostIn{
+      from{ transform: translate3d(var(--x), var(--y), 0) scale(.95); opacity:.0; }
+      to{ transform: translate3d(var(--x), var(--y), 0) scale(1); opacity:.96; }
+    }
+
+    /* HUD text popups */
+    #floatTextLayer{ position:absolute; inset:0; pointer-events:none; z-index: 50; }
+    .floatText{
+      position:absolute;
+      font-weight: 800;
+      letter-spacing: .2px;
+      text-shadow: 0 10px 25px rgba(0,0,0,.45);
+      will-change: transform, opacity;
+      animation: floatUp 900ms ease-out both;
+    }
+    @keyframes floatUp{
+      0%{ transform: translate(-50%, -10px) scale(.96); opacity:0; }
+      16%{ opacity:1; transform: translate(-50%, -26px) scale(1.02); }
+      100%{ opacity:0; transform: translate(-50%, -80px) scale(1.06); }
+    }
+
+    /* Screen shake */
+    .shake{ animation: shake 240ms ease both; }
+    @keyframes shake{
+      0%{ transform: translateX(0); }
+      22%{ transform: translateX(-6px); }
+      45%{ transform: translateX(5px); }
+      70%{ transform: translateX(-3px); }
+      100%{ transform: translateX(0); }
+    }
+
+    /* Modal */
+    .modalBack{
+      position: fixed; inset: 0; z-index: 90;
+      background: rgba(0,0,0,.58);
+      backdrop-filter: blur(8px);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding: 18px;
+    }
+    .modalBack.show{ display:flex; }
+    .modal{
+      width: min(920px, 100%);
+      border-radius: 22px;
+      overflow:hidden;
+      border: 1px solid rgba(255,255,255,.12);
+      background: linear-gradient(180deg, rgba(255,255,255,.10), rgba(255,255,255,.06));
+      box-shadow: 0 25px 80px rgba(0,0,0,.65);
+    }
+    .modalHeader{
+      padding: 16px 18px;
+      background: rgba(0,0,0,.25);
+      border-bottom: 1px solid rgba(255,255,255,.10);
+    }
+    .modalBody{ padding: 18px; }
+
+    /* Subtle sheen */
+    .sheen{
+      position: relative;
+      overflow:hidden;
+    }
+    .sheen:before{
+      content:"";
+      position:absolute;
+      inset:-80% -30%;
+      background: linear-gradient(120deg, transparent, rgba(255,255,255,.14), transparent);
+      transform: translateX(-60%) rotate(12deg);
+      animation: sheen 5.8s ease-in-out infinite;
+      pointer-events:none;
+    }
+    @keyframes sheen{
+      0%{ transform: translateX(-70%) rotate(12deg); opacity:.0; }
+      12%{ opacity:.45; }
+      24%{ transform: translateX(70%) rotate(12deg); opacity:.0; }
+      100%{ transform: translateX(70%) rotate(12deg); opacity:.0; }
+    }
+
+    /* Reduce motion */
+    @media (prefers-reduced-motion: reduce){
+      * { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body class="text-slate-100">
+  <div class="max-w-6xl mx-auto p-4 lg:p-6">
+    <header class="glass rounded-[22px] p-4 lg:p-5 flex flex-col gap-3 sheen">
+      <div class="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+        <div class="flex items-end justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-3">
+              <h1 class="text-2xl lg:text-3xl font-black tracking-tight">Block Blast</h1>
+              <span id="modePill" class="text-xs font-bold px-2.5 py-1 rounded-full bg-white/10 border border-white/10">Приключение</span>
+            </div>
+            <p class="text-sm text-slate-300">Ставьте блоки. Заполняйте линии. Разгоняйте комбо и серию. Проходите уровни.</p>
+          </div>
+          <div class="hidden md:block text-right">
+            <div class="text-xs text-slate-400">Подсказка</div>
+            <div class="text-sm text-slate-200">Тяните фигуры на поле. ЛКМ — перетащить. Esc — меню.</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 lg:gap-3">
+          <div class="glass rounded-2xl px-3 py-2">
+            <div class="text-[11px] uppercase tracking-wider text-slate-400">Очки</div>
+            <div id="score" class="text-xl font-black">0</div>
+          </div>
+          <div class="glass rounded-2xl px-3 py-2">
+            <div class="text-[11px] uppercase tracking-wider text-slate-400">Комбо</div>
+            <div class="flex items-baseline gap-2">
+              <div id="combo" class="text-xl font-black">×1</div>
+              <div id="streak" class="text-xs text-slate-300">серия 0</div>
+            </div>
+          </div>
+          <div class="glass rounded-2xl px-3 py-2">
+            <div class="text-[11px] uppercase tracking-wider text-slate-400">Уровень</div>
+            <div class="flex items-baseline justify-between gap-2">
+              <div id="level" class="text-xl font-black">1</div>
+              <button id="btnLevels" class="btn text-xs font-bold px-2 py-1 rounded-lg bg-white/10 hover:bg-white/15 border border-white/10">Карта</button>
+            </div>
+          </div>
+          <div class="glass rounded-2xl px-3 py-2">
+            <div class="text-[11px] uppercase tracking-wider text-slate-400">Цель</div>
+            <div id="objective" class="text-sm font-bold">—</div>
+            <div id="moves" class="text-xs text-slate-300">Ходы: —</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <button id="btnNew" class="btn px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/25 border border-emerald-400/30 font-bold">Новая попытка</button>
+        <button id="btnEndless" class="btn px-3 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/20 border border-sky-400/25 font-bold">Бесконечный режим</button>
+        <button id="btnAdventure" class="btn px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold">Приключение</button>
+        <div class="flex-1"></div>
+        <button id="btnSound" class="btn px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold">Звук: вкл</button>
+        <button id="btnHelp" class="btn px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold">Правила</button>
+      </div>
+    </header>
+
+    <main class="mt-4 lg:mt-6 grid lg:grid-cols-[1fr_360px] gap-4 lg:gap-6">
+      <section id="boardWrap" class="glass">
+        <div class="flex items-center justify-between px-4 pt-4">
+          <div class="text-sm text-slate-300">
+            <span class="font-bold text-slate-100">Линии:</span>
+            <span id="lines">0</span>
+            <span class="text-slate-500">•</span>
+            <span class="font-bold text-slate-100">Лучшее:</span>
+            <span id="best">0</span>
+          </div>
+          <div class="text-xs text-slate-400">Заполненная строка или колонка исчезает.</div>
+        </div>
+
+        <div class="relative">
+          <div id="board" aria-label="Игровое поле" role="grid"></div>
+          <canvas id="fx" class="absolute inset-0 w-full h-full pointer-events-none"></canvas>
+          <div id="floatTextLayer"></div>
+        </div>
+      </section>
+
+      <aside class="space-y-4">
+        <div class="glass rounded-[22px] p-4">
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm font-black">Фигуры</div>
+              <div class="text-xs text-slate-400">Используйте все три — появятся новые.</div>
+            </div>
+            <div id="hint" class="text-xs font-bold text-slate-300">Подсветка: включена</div>
+          </div>
+          <div id="pieces" class="mt-3 grid grid-cols-3 gap-3"></div>
+          <div class="mt-3 text-xs text-slate-400 leading-relaxed">
+            <span class="text-slate-300 font-bold">Комбо:</span> за очистку нескольких линий одним ходом.
+            <br />
+            <span class="text-slate-300 font-bold">Серия:</span> за очистки подряд без «пустого» хода.
+          </div>
+        </div>
+
+        <div class="glass rounded-[22px] p-4">
+          <div class="text-sm font-black">Атака очков</div>
+          <div class="mt-2 space-y-2 text-sm text-slate-300">
+            <div class="flex items-center justify-between">
+              <span>За блоки</span>
+              <span class="font-bold text-slate-100">+5</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>За линию</span>
+              <span class="font-bold text-slate-100">+120</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>Комбо (2+ линий)</span>
+              <span class="font-bold text-slate-100">×1.5 → ×3+</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span>Серия</span>
+              <span class="font-bold text-slate-100">+10% за уровень серии</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass rounded-[22px] p-4">
+          <div class="text-sm font-black">Советы профи</div>
+          <ul class="mt-2 text-sm text-slate-300 list-disc pl-5 space-y-1">
+            <li>Держите поле «ровным»: оставляйте места под длинные линии.</li>
+            <li>Ставьте большие фигуры первыми — они ограничивают пространство.</li>
+            <li>Если можно очистить 2+ линий — делайте это для комбо.</li>
+          </ul>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <div id="ghost" class="hidden"></div>
+
+  <!-- Modal overlay -->
+  <div id="modalBack" class="modalBack" role="dialog" aria-modal="true">
+    <div class="modal">
+      <div class="modalHeader flex items-center justify-between gap-3">
+        <div>
+          <div id="modalTitle" class="text-lg font-black">Меню</div>
+          <div id="modalSubtitle" class="text-xs text-slate-300">—</div>
+        </div>
+        <button id="modalClose" class="btn px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold">Закрыть</button>
+      </div>
+      <div id="modalBody" class="modalBody"></div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    /**
+     * Block Blast — single-file game
+     * - 10x10 board
+     * - Drag & drop pieces (3 at a time)
+     * - Clear full rows/cols
+     * - Combo + streak
+     * - Adventure mode with seeded levels
+     */
+
+    // ---------- Helpers
+    const $ = (sel, el=document) => el.querySelector(sel);
+    const $$ = (sel, el=document) => Array.from(el.querySelectorAll(sel));
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const now = () => performance.now();
+
+    const formatInt = (n) => {
+      const s = Math.floor(n).toString();
+      return s.replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
+    };
+
+    // Seeded RNG (Mulberry32)
+    const mulberry32 = (seed) => {
+      let a = seed >>> 0;
+      return () => {
+        a |= 0; a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    };
+
+    // ---------- Audio (tiny SFX)
+    class AudioManager {
+      constructor(){
+        this.enabled = true;
+        this.ctx = null;
+        this.master = null;
+      }
+      ensure(){
+        if (!this.enabled) return;
+        if (this.ctx) return;
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        this.ctx = new AC();
+        this.master = this.ctx.createGain();
+        this.master.gain.value = 0.18;
+        this.master.connect(this.ctx.destination);
+      }
+      setEnabled(v){
+        this.enabled = !!v;
+        if (!this.enabled && this.ctx){
+          // keep ctx; just silence
+          this.master.gain.value = 0.0001;
+        } else if (this.enabled && this.ctx){
+          this.master.gain.value = 0.18;
+        }
+      }
+      beep({type='sine', f=440, t=0.06, g=0.6, detune=0, slide=0, when=0}={}){
+        if (!this.enabled) return;
+        this.ensure();
+        if (!this.ctx) return;
+        const ctx = this.ctx;
+        const time = ctx.currentTime + when;
+        const o = ctx.createOscillator();
+        const gain = ctx.createGain();
+        o.type = type;
+        o.frequency.setValueAtTime(f, time);
+        if (slide !== 0){
+          o.frequency.exponentialRampToValueAtTime(Math.max(20, f + slide), time + t);
+        }
+        o.detune.setValueAtTime(detune, time);
+        gain.gain.setValueAtTime(0.0001, time);
+        gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, g), time + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, time + t);
+        o.connect(gain);
+        gain.connect(this.master);
+        o.start(time);
+        o.stop(time + t + 0.02);
+      }
+      place(){ this.beep({type:'triangle', f:260, t:0.07, g:0.5, slide:60}); }
+      invalid(){ this.beep({type:'sawtooth', f:140, t:0.08, g:0.4, slide:-30}); }
+      clear(lines){
+        const base = 380 + lines*45;
+        this.beep({type:'square', f:base, t:0.08, g:0.42, slide:160});
+        this.beep({type:'sine', f:base*1.5, t:0.09, g:0.28, when:0.03});
+      }
+      levelUp(){
+        this.beep({type:'triangle', f:440, t:0.10, g:0.55, slide:220});
+        this.beep({type:'sine', f:660, t:0.12, g:0.35, when:0.06, slide:260});
+      }
+    }
+
+    // ---------- Particles (canvas)
+    class FX {
+      constructor(canvas){
+        this.c = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.p = [];
+        this.last = now();
+        this.running = false;
+        this.resize();
+        window.addEventListener('resize', () => this.resize(), {passive:true});
+      }
+      resize(){
+        const r = this.c.getBoundingClientRect();
+        const dpr = Math.max(1, Math.min(2.2, window.devicePixelRatio || 1));
+        this.dpr = dpr;
+        this.w = Math.floor(r.width * dpr);
+        this.h = Math.floor(r.height * dpr);
+        this.c.width = this.w;
+        this.c.height = this.h;
+      }
+      clear(){
+        this.ctx.clearRect(0,0,this.w,this.h);
+      }
+      burst(x, y, colorA, colorB, power=1){
+        // x,y are in canvas CSS pixels relative to canvas
+        const d = this.dpr;
+        const cx = x * d;
+        const cy = y * d;
+        const n = Math.floor(18 + 18*power);
+        for (let i=0;i<n;i++){
+          const a = Math.random()*Math.PI*2;
+          const s = (2.5 + Math.random()*5.5) * d * (0.85 + 0.8*power);
+          this.p.push({
+            x: cx,
+            y: cy,
+            vx: Math.cos(a)*s,
+            vy: Math.sin(a)*s - (2.2*d*power),
+            g: (0.35 + Math.random()*0.35) * d,
+            r: (1.2 + Math.random()*2.6) * d,
+            life: 420 + Math.random()*520,
+            t: 0,
+            c1: colorA,
+            c2: colorB
+          });
+        }
+        this.kick();
+      }
+      confetti(){
+        const n = 140;
+        for (let i=0;i<n;i++){
+          const x = Math.random() * this.w;
+          const y = -20 * this.dpr;
+          const vx = (Math.random()-0.5) * 2.3 * this.dpr;
+          const vy = (2.2 + Math.random()*4.2) * this.dpr;
+          const r = (1.6 + Math.random()*2.8) * this.dpr;
+          const life = 1200 + Math.random()*900;
+          const palettes = [
+            ['#60a5fa','#22d3ee'],
+            ['#34d399','#a7f3d0'],
+            ['#fb7185','#fda4af'],
+            ['#fbbf24','#fde68a'],
+            ['#a78bfa','#ddd6fe'],
+          ];
+          const p = palettes[(Math.random()*palettes.length)|0];
+          this.p.push({x,y,vx,vy,g:(0.16+Math.random()*0.20)*this.dpr,r,life,t:0,c1:p[0],c2:p[1],spin:(Math.random()-0.5)*0.18});
+        }
+        this.kick();
+      }
+      kick(){
+        if (this.running) return;
+        this.running = true;
+        this.last = now();
+        requestAnimationFrame((t)=>this.frame(t));
+      }
+      frame(t){
+        const dt = clamp(t - this.last, 8, 34);
+        this.last = t;
+        const ctx = this.ctx;
+        ctx.clearRect(0,0,this.w,this.h);
+        for (let i=this.p.length-1;i>=0;i--){
+          const p = this.p[i];
+          p.t += dt;
+          const k = p.t / p.life;
+          p.vy += p.g * (dt/16.67);
+          p.x += p.vx * (dt/16.67);
+          p.y += p.vy * (dt/16.67);
+          const alpha = (1 - k);
+          if (alpha <= 0){
+            this.p.splice(i,1);
+            continue;
+          }
+          ctx.globalAlpha = alpha;
+          const grad = ctx.createLinearGradient(p.x-p.r, p.y-p.r, p.x+p.r, p.y+p.r);
+          grad.addColorStop(0, p.c1);
+          grad.addColorStop(1, p.c2);
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+        if (this.p.length > 0) requestAnimationFrame((tt)=>this.frame(tt));
+        else this.running = false;
+      }
+    }
+
+    // ---------- Game data
+    const BOARD_N = 10;
+
+    const PALETTES = [
+      ['#60a5fa','#22d3ee'],
+      ['#34d399','#22c55e'],
+      ['#fb7185','#f43f5e'],
+      ['#fbbf24','#f97316'],
+      ['#a78bfa','#8b5cf6'],
+      ['#94a3b8','#e2e8f0'],
+      ['#f472b6','#ec4899'],
+      ['#2dd4bf','#14b8a6']
+    ];
+
+    // Shapes are arrays of [x,y] relative coords.
+    // Keep them "game-feel" friendly: lots of medium pieces.
+    const SHAPES = [
+      // singles & lines
+      [[0,0]],
+      [[0,0],[1,0]],
+      [[0,0],[0,1]],
+      [[0,0],[1,0],[2,0]],
+      [[0,0],[0,1],[0,2]],
+      [[0,0],[1,0],[2,0],[3,0]],
+      [[0,0],[0,1],[0,2],[0,3]],
+      [[0,0],[1,0],[2,0],[3,0],[4,0]],
+      [[0,0],[0,1],[0,2],[0,3],[0,4]],
+      // squares
+      [[0,0],[1,0],[0,1],[1,1]],
+      [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1]], // 3x2
+      [[0,0],[1,0],[0,1],[1,1],[0,2],[1,2]], // 2x3
+      [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[0,2],[1,2],[2,2]], // 3x3
+      // L / J
+      [[0,0],[0,1],[0,2],[1,2]],
+      [[1,0],[1,1],[1,2],[0,2]],
+      [[0,0],[1,0],[2,0],[0,1]],
+      [[0,0],[1,0],[2,0],[2,1]],
+      // T
+      [[0,0],[1,0],[2,0],[1,1]],
+      [[0,1],[1,1],[2,1],[1,0]],
+      // S / Z
+      [[1,0],[2,0],[0,1],[1,1]],
+      [[0,0],[1,0],[1,1],[2,1]],
+      // plus-ish
+      [[1,0],[0,1],[1,1],[2,1],[1,2]],
+      // chunky
+      [[0,0],[1,0],[2,0],[0,1],[1,1]],
+      [[0,0],[1,0],[2,0],[1,1],[2,1]],
+      [[0,0],[1,0],[0,1],[1,1],[2,1]],
+      [[0,0],[1,0],[2,0],[0,1],[1,1],[2,1],[2,2]],
+      [[0,0],[0,1],[1,1],[2,1],[2,0]], // U-ish
+    ];
+
+    const LEVELS = (() => {
+      // Designed to feel like "puzzles" via seeded deterministic piece stream + move limit.
+      // Targets scale; early levels are forgiving.
+      const names = [
+        'Разминка', 'Первые искры', 'Кристальная решётка', 'Сдвиг', 'Узел',
+        'Точка кипения', 'Лабиринт', 'Комбо-шторм', 'Плотность', 'Поворот судьбы',
+        'Тонкая грань', 'Нарастающий ритм', 'Стеклянный мост', 'Пульс', 'Магнитные линии',
+        'Каскад', 'Ночной рейд', 'Идеальный след', 'Пик', 'Финальный аккорд'
+      ];
+      const out = [];
+      for (let i=0;i<20;i++){
+        const idx = i+1;
+        const moveLimit = 26 + i*2; // 26..64
+        const targetLines = Math.round(4 + i*1.25); // 4..28
+        const targetScore = 1200 + i*650; // 1200..~14450
+        const seed = 0xC0FFEE ^ (idx*0x9E3779B1);
+        out.push({
+          id: idx,
+          name: names[i] || `Уровень ${idx}`,
+          moveLimit,
+          targetLines,
+          targetScore,
+          seed,
+          // pieceStream: in adventure we don't need infinite, but we can generate on demand.
+          // Also slightly bias shapes with size as level grows.
+          weightBig: clamp(0.10 + i*0.02, 0.10, 0.55)
+        });
+      }
+      return out;
+    })();
+
+    // ---------- UI / Modal
+    function openModal({title, subtitle='', bodyHTML='', onClose=null}){
+      const back = $('#modalBack');
+      $('#modalTitle').textContent = title;
+      $('#modalSubtitle').textContent = subtitle;
+      $('#modalBody').innerHTML = bodyHTML;
+      back.classList.add('show');
+      back.dataset.onClose = onClose ? '1' : '';
+      back._onClose = onClose;
+    }
+    function closeModal(){
+      const back = $('#modalBack');
+      if (!back.classList.contains('show')) return;
+      back.classList.remove('show');
+      const cb = back._onClose;
+      back._onClose = null;
+      if (typeof cb === 'function') cb();
+    }
+
+    // ---------- Game
+    class BlockBlast {
+      constructor(){
+        this.boardEl = $('#board');
+        this.boardWrap = $('#boardWrap');
+        this.piecesEl = $('#pieces');
+        this.ghostEl = $('#ghost');
+        this.floatLayer = $('#floatTextLayer');
+
+        this.hud = {
+          score: $('#score'),
+          best: $('#best'),
+          lines: $('#lines'),
+          combo: $('#combo'),
+          streak: $('#streak'),
+          level: $('#level'),
+          objective: $('#objective'),
+          moves: $('#moves'),
+          modePill: $('#modePill')
+        };
+
+        this.btnNew = $('#btnNew');
+        this.btnEndless = $('#btnEndless');
+        this.btnAdventure = $('#btnAdventure');
+        this.btnSound = $('#btnSound');
+        this.btnHelp = $('#btnHelp');
+        this.btnLevels = $('#btnLevels');
+
+        this.modalClose = $('#modalClose');
+        this.modalBack = $('#modalBack');
+
+        this.fx = new FX($('#fx'));
+        this.audio = new AudioManager();
+
+        this.persistKey = 'blockblast_v1';
+        this.settingsKey = 'blockblast_v1_settings';
+
+        this.cells = []; // DOM cell list
+        this.board = [];
+
+        this.mode = 'adventure'; // 'adventure' | 'endless'
+        this.levelIndex = 0;
+
+        this.score = 0;
+        this.bestEndless = 0;
+        this.linesTotal = 0;
+        this.movesUsed = 0;
+
+        this.streak = 0; // consecutive clears across moves
+        this.lastMoveCleared = false;
+
+        this.pieces = [];
+        this.usedCount = 0;
+
+        this.drag = {
+          active:false,
+          pieceId:null,
+          anchorGX:0,
+          anchorGY:0,
+          offX:0,
+          offY:0,
+          lastX:0,
+          lastY:0,
+          hoverCell:null,
+          preview:[],
+          valid:false,
+          placeX:0,
+          placeY:0
+        };
+
+        this.busy = false;
+        this.rng = Math.random;
+
+        this.progress = {
+          unlocked: 1,
+          bestByLevel: {},
+          lastLevel: 1
+        };
+        this.settings = { sound: true };
+
+        this.init();
+      }
+
+      init(){
+        this.load();
+        this.audio.setEnabled(this.settings.sound);
+        this.btnSound.textContent = `Звук: ${this.settings.sound ? 'вкл' : 'выкл'}`;
+
+        this.buildBoard();
+        this.bindUI();
+
+        // Start
+        this.setMode('adventure');
+        this.startLevel(this.progress.lastLevel || 1);
+
+        // Ensure audio unlock on first interaction
+        const unlock = () => {
+          this.audio.ensure();
+          window.removeEventListener('pointerdown', unlock);
+          window.removeEventListener('keydown', unlock);
+        };
+        window.addEventListener('pointerdown', unlock, {once:true});
+        window.addEventListener('keydown', unlock, {once:true});
+      }
+
+      load(){
+        try{
+          const raw = localStorage.getItem(this.persistKey);
+          if (raw) this.progress = {...this.progress, ...JSON.parse(raw)};
+        }catch(e){}
+        try{
+          const s = localStorage.getItem(this.settingsKey);
+          if (s) this.settings = {...this.settings, ...JSON.parse(s)};
+        }catch(e){}
+      }
+      save(){
+        localStorage.setItem(this.persistKey, JSON.stringify(this.progress));
+        localStorage.setItem(this.settingsKey, JSON.stringify(this.settings));
+      }
+
+      buildBoard(){
+        this.boardEl.innerHTML = '';
+        this.cells = [];
+        for (let y=0;y<BOARD_N;y++){
+          for (let x=0;x<BOARD_N;x++){
+            const d = document.createElement('div');
+            d.className = 'cell';
+            d.setAttribute('role', 'gridcell');
+            d.dataset.x = x;
+            d.dataset.y = y;
+            this.boardEl.appendChild(d);
+            this.cells.push(d);
+          }
+        }
+      }
+
+      bindUI(){
+        this.btnNew.addEventListener('click', () => {
+          if (this.mode === 'adventure') this.startLevel(this.levelIndex+1);
+          else this.newEndless();
+        });
+
+        this.btnEndless.addEventListener('click', () => {
+          this.setMode('endless');
+          this.newEndless();
+        });
+
+        this.btnAdventure.addEventListener('click', () => {
+          this.setMode('adventure');
+          const l = clamp(this.progress.lastLevel || 1, 1, LEVELS.length);
+          this.startLevel(l);
+        });
+
+        this.btnSound.addEventListener('click', () => {
+          this.settings.sound = !this.settings.sound;
+          this.audio.setEnabled(this.settings.sound);
+          this.btnSound.textContent = `Звук: ${this.settings.sound ? 'вкл' : 'выкл'}`;
+          this.save();
+          if (this.settings.sound) this.audio.beep({f:520, t:0.07, g:0.45, slide:120});
+        });
+
+        this.btnHelp.addEventListener('click', () => this.showHelp());
+        this.btnLevels.addEventListener('click', () => this.showLevelSelect());
+
+        this.modalClose.addEventListener('click', () => closeModal());
+        this.modalBack.addEventListener('click', (e) => {
+          if (e.target === this.modalBack) closeModal();
+        });
+
+        window.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape'){
+            if (this.modalBack.classList.contains('show')) closeModal();
+            else this.showPause();
+          }
+        });
+
+        // Drag events (delegated)
+        this.piecesEl.addEventListener('pointerdown', (e) => this.onPieceDown(e));
+        window.addEventListener('pointermove', (e) => this.onPointerMove(e), {passive:false});
+        window.addEventListener('pointerup', (e) => this.onPointerUp(e), {passive:false});
+        window.addEventListener('pointercancel', (e) => this.onPointerUp(e), {passive:false});
+      }
+
+      setMode(mode){
+        this.mode = mode;
+        this.hud.modePill.textContent = (mode === 'adventure') ? 'Приключение' : 'Бесконечный';
+        document.title = `Block Blast — ${(mode === 'adventure') ? 'Приключение' : 'Бесконечный'}`;
+      }
+
+      // ----- Level / State
+      resetCommon(){
+        this.board = Array.from({length:BOARD_N}, () => Array.from({length:BOARD_N}, () => null));
+        this.score = 0;
+        this.linesTotal = 0;
+        this.movesUsed = 0;
+        this.streak = 0;
+        this.lastMoveCleared = false;
+        this.busy = false;
+        this.pieces = [];
+        this.usedCount = 0;
+        this.clearPreview();
+        this.renderBoard(true);
+        this.fx.clear();
+      }
+
+      startLevel(levelId){
+        const idx = clamp(levelId, 1, LEVELS.length) - 1;
+        this.levelIndex = idx;
+        const L = LEVELS[idx];
+        this.progress.lastLevel = L.id;
+        this.save();
+
+        // Seeded RNG for deterministic adventure.
+        this.rng = mulberry32(L.seed);
+        this.resetCommon();
+
+        this.spawnPieces();
+        this.renderHUD();
+        this.toastCenter(`Уровень ${L.id}: ${L.name}`, 'sky');
+      }
+
+      newEndless(){
+        this.rng = Math.random;
+        this.resetCommon();
+        this.spawnPieces();
+        this.renderHUD();
+        this.toastCenter('Бесконечный режим', 'sky');
+      }
+
+      // ----- Pieces
+      makePiece(id){
+        // Weighted choice: in later levels, slightly prefer bigger shapes.
+        const L = (this.mode==='adventure') ? LEVELS[this.levelIndex] : null;
+        const bigBias = L ? L.weightBig : 0.2;
+
+        // score each shape by size
+        const sizes = SHAPES.map(s => s.length);
+        let pool = [];
+        for (let i=0;i<SHAPES.length;i++){
+          const n = sizes[i];
+          const w = (n>=5 ? (1 + bigBias*3) : n===4 ? (1 + bigBias*1.8) : (1.25 - bigBias*0.6));
+          const count = clamp(Math.round(w*3), 1, 8);
+          for (let k=0;k<count;k++) pool.push(i);
+        }
+        const si = pool[(this.rng()*pool.length)|0];
+        const shape = SHAPES[si];
+
+        const pal = PALETTES[(this.rng()*PALETTES.length)|0];
+        // Normalize to start at 0,0
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        for (const [x,y] of shape){
+          minX = Math.min(minX, x); minY = Math.min(minY, y);
+          maxX = Math.max(maxX, x); maxY = Math.max(maxY, y);
+        }
+        const norm = shape.map(([x,y]) => ({x:x-minX, y:y-minY}));
+        const w = (maxX-minX)+1;
+        const h = (maxY-minY)+1;
+        return {
+          id,
+          shape: norm,
+          w, h,
+          c1: pal[0],
+          c2: pal[1],
+          used:false
+        };
+      }
+
+      spawnPieces(){
+        const baseId = (Date.now() & 0xfffffff) ^ ((this.rng()*1e9)|0);
+        this.pieces = [this.makePiece(baseId+1), this.makePiece(baseId+2), this.makePiece(baseId+3)];
+        this.usedCount = 0;
+        this.renderPieces();
+
+        // Micro animation + tiny sound cue
+        if (this.settings.sound) this.audio.beep({f:420, t:0.06, g:0.25, slide:80});
+      }
+
+      renderPieces(){
+        this.piecesEl.innerHTML = '';
+        for (const p of this.pieces){
+          const el = document.createElement('div');
+          el.className = 'piece';
+          el.dataset.id = p.id;
+          el.style.setProperty('--c1', p.c1);
+          el.style.setProperty('--c2', p.c2);
+
+          const grid = document.createElement('div');
+          grid.className = 'pieceGrid';
+          grid.style.gridTemplateColumns = `repeat(${p.w}, calc(var(--cell) * .56))`;
+          grid.style.gridTemplateRows = `repeat(${p.h}, calc(var(--cell) * .56))`;
+
+          const filledSet = new Set(p.shape.map(pt => `${pt.x},${pt.y}`));
+          for (let y=0;y<p.h;y++){
+            for (let x=0;x<p.w;x++){
+              const c = document.createElement('div');
+              c.className = 'pCell';
+              c.dataset.gx = x;
+              c.dataset.gy = y;
+              if (filledSet.has(`${x},${y}`)) c.classList.add('filled');
+              grid.appendChild(c);
+            }
+          }
+
+          const meta = document.createElement('div');
+          meta.className = 'mt-2 flex items-center justify-between text-[11px] text-slate-300';
+          meta.innerHTML = `
+            <span class="font-bold">${p.shape.length} блок.</span>
+            <span class="text-slate-400">перетащите</span>
+          `;
+
+          el.appendChild(grid);
+          el.appendChild(meta);
+          this.piecesEl.appendChild(el);
+
+          // spawn bounce
+          el.animate([
+            { transform: 'translateY(8px) scale(.98)', opacity: 0 },
+            { transform: 'translateY(-2px) scale(1.02)', opacity: 1, offset: 0.65 },
+            { transform: 'translateY(0) scale(1)', opacity: 1 }
+          ], { duration: 260, easing: 'cubic-bezier(.2,.9,.2,1)' });
+        }
+      }
+
+      getPieceById(id){
+        return this.pieces.find(p => p.id === id);
+      }
+
+      // ----- Board
+      renderBoard(force=false){
+        // Update DOM cells from board state
+        for (let y=0;y<BOARD_N;y++){
+          for (let x=0;x<BOARD_N;x++){
+            const idx = y*BOARD_N + x;
+            const cell = this.cells[idx];
+            const v = this.board[y][x];
+            const filled = !!v;
+            if (filled){
+              cell.classList.add('filled');
+              cell.style.setProperty('--c1', v.c1);
+              cell.style.setProperty('--c2', v.c2);
+            } else {
+              cell.classList.remove('filled');
+              cell.style.removeProperty('--c1');
+              cell.style.removeProperty('--c2');
+            }
+            if (force) cell.classList.remove('justPlaced','clearing','previewValid','previewInvalid');
+          }
+        }
+      }
+
+      clearPreview(){
+        for (const idx of this.drag.preview){
+          const cell = this.cells[idx];
+          cell?.classList.remove('previewValid','previewInvalid');
+        }
+        this.drag.preview = [];
+      }
+
+      cellFromClient(clientX, clientY){
+        const r = this.boardEl.getBoundingClientRect();
+        const x = Math.floor((clientX - r.left) / (r.width / BOARD_N));
+        const y = Math.floor((clientY - r.top) / (r.height / BOARD_N));
+        if (x<0 || y<0 || x>=BOARD_N || y>=BOARD_N) return null;
+        return {x,y, rect:r};
+      }
+
+      canPlaceAt(piece, bx, by){
+        for (const s of piece.shape){
+          const x = bx + s.x;
+          const y = by + s.y;
+          if (x<0 || y<0 || x>=BOARD_N || y>=BOARD_N) return false;
+          if (this.board[y][x]) return false;
+        }
+        return true;
+      }
+
+      canPlaceAny(piece){
+        for (let y=0;y<BOARD_N;y++){
+          for (let x=0;x<BOARD_N;x++){
+            if (this.canPlaceAt(piece, x, y)) return true;
+          }
+        }
+        return false;
+      }
+
+      anyMovesLeft(){
+        for (const p of this.pieces){
+          if (p.used) continue;
+          if (this.canPlaceAny(p)) return true;
+        }
+        return false;
+      }
+
+      placePiece(piece, bx, by){
+        // Apply piece blocks
+        for (const s of piece.shape){
+          const x = bx + s.x;
+          const y = by + s.y;
+          this.board[y][x] = {c1:piece.c1, c2:piece.c2};
+          const idx = y*BOARD_N + x;
+          const cell = this.cells[idx];
+          cell.classList.add('filled','justPlaced');
+          cell.style.setProperty('--c1', piece.c1);
+          cell.style.setProperty('--c2', piece.c2);
+          setTimeout(() => cell.classList.remove('justPlaced'), 220);
+        }
+
+        // SFX & FX
+        this.audio.place();
+        const center = this.boardEl.getBoundingClientRect();
+        const cx = center.width * (bx / BOARD_N) + (center.width / BOARD_N) * 0.5;
+        const cy = center.height * (by / BOARD_N) + (center.height / BOARD_N) * 0.5;
+        this.fx.burst(cx, cy, piece.c1, piece.c2, 0.55);
+
+        // Score for placement
+        const blocks = piece.shape.length;
+        this.score += blocks * 5;
+
+        // Check lines
+        const cleared = this.checkLines();
+        if (cleared.count > 0){
+          this.onLinesCleared(cleared);
+        } else {
+          this.onNoClear();
+        }
+
+        piece.used = true;
+        this.usedCount++;
+        this.movesUsed++;
+
+        this.renderPiecesUsedState();
+        this.renderHUD();
+
+        // Refill if all used
+        if (this.usedCount >= 3){
+          this.spawnPieces();
+          this.renderHUD();
+        }
+
+        // End conditions
+        this.postMoveCheck();
+      }
+
+      renderPiecesUsedState(){
+        const els = $$('#pieces .piece');
+        for (const el of els){
+          const id = Number(el.dataset.id);
+          const p = this.getPieceById(id);
+          if (!p) continue;
+          if (p.used) el.classList.add('used');
+          else el.classList.remove('used');
+        }
+      }
+
+      checkLines(){
+        const fullRows = [];
+        const fullCols = [];
+        for (let y=0;y<BOARD_N;y++){
+          let ok = true;
+          for (let x=0;x<BOARD_N;x++) if (!this.board[y][x]) { ok = false; break; }
+          if (ok) fullRows.push(y);
+        }
+        for (let x=0;x<BOARD_N;x++){
+          let ok = true;
+          for (let y=0;y<BOARD_N;y++) if (!this.board[y][x]) { ok = false; break; }
+          if (ok) fullCols.push(x);
+        }
+        const toClear = new Set();
+        for (const y of fullRows) for (let x=0;x<BOARD_N;x++) toClear.add(y*BOARD_N + x);
+        for (const x of fullCols) for (let y=0;y<BOARD_N;y++) toClear.add(y*BOARD_N + x);
+        const count = fullRows.length + fullCols.length;
+        return { fullRows, fullCols, toClear, count };
+      }
+
+      onNoClear(){
+        this.streak = 0;
+        this.lastMoveCleared = false;
+        this.hud.combo.textContent = '×1';
+        this.hud.streak.textContent = 'серия 0';
+      }
+
+      onLinesCleared(cleared){
+        // Combo: multiple lines in a single move
+        const comboLines = cleared.count;
+        const comboMult = comboLines <= 1 ? 1 : (1 + 0.5*(comboLines-1)); // 2 lines => x1.5, 3 => x2, 4 => x2.5...
+
+        // Streak: consecutive moves with clears
+        this.streak = this.lastMoveCleared ? (this.streak + 1) : 1;
+        this.lastMoveCleared = true;
+        const streakMult = 1 + 0.10 * Math.max(0, this.streak - 1);
+
+        const base = comboLines * 120;
+        const bonus = Math.round(base * comboMult * streakMult);
+        this.score += bonus;
+        this.linesTotal += comboLines;
+
+        // HUD
+        this.hud.combo.textContent = `×${(comboMult).toFixed(comboMult % 1 ? 1 : 0)}`;
+        this.hud.streak.textContent = `серия ${this.streak}`;
+
+        // Animate clears
+        this.busy = true;
+        this.audio.clear(comboLines);
+        this.boardWrap.classList.remove('shake');
+        this.boardWrap.offsetHeight; // reflow
+        this.boardWrap.classList.add('shake');
+
+        // Popups
+        const label = comboLines >= 2 ? `КОМБО ×${(comboMult).toFixed(comboMult % 1 ? 1 : 0)}` : 'ЛИНИЯ!';
+        const label2 = this.streak >= 2 ? `СЕРИЯ ${this.streak}` : '';
+        this.toastBoard(label, comboLines >= 2 ? 'emerald' : 'sky');
+        if (label2) this.toastBoard(label2, 'amber');
+        this.toastPoints(`+${formatInt(bonus)}`, 'rose');
+
+        // FX bursts along cleared lines
+        const br = this.boardEl.getBoundingClientRect();
+        const cellW = br.width / BOARD_N;
+        const cellH = br.height / BOARD_N;
+        for (const idx of cleared.toClear){
+          const x = idx % BOARD_N;
+          const y = Math.floor(idx / BOARD_N);
+          const cx = (x + 0.5) * cellW;
+          const cy = (y + 0.5) * cellH;
+          // sample color from cell
+          const c = this.board[y][x];
+          const c1 = c?.c1 || '#60a5fa';
+          const c2 = c?.c2 || '#22d3ee';
+          this.fx.burst(cx, cy, c1, c2, 0.85);
+        }
+
+        // Mark & clear
+        for (const idx of cleared.toClear){
+          const cell = this.cells[idx];
+          cell.classList.add('clearing');
+        }
+
+        setTimeout(() => {
+          for (const idx of cleared.toClear){
+            const x = idx % BOARD_N;
+            const y = Math.floor(idx / BOARD_N);
+            this.board[y][x] = null;
+            const cell = this.cells[idx];
+            cell.classList.remove('clearing','filled');
+            cell.style.removeProperty('--c1');
+            cell.style.removeProperty('--c2');
+          }
+          this.busy = false;
+          this.renderHUD();
+          this.postMoveCheck();
+        }, 320);
+      }
+
+      postMoveCheck(){
+        if (this.busy) return;
+
+        // Adventure move limit
+        if (this.mode === 'adventure'){
+          const L = LEVELS[this.levelIndex];
+          const movesLeft = L.moveLimit - this.movesUsed;
+          if (this.isLevelComplete()){
+            this.onLevelComplete();
+            return;
+          }
+          if (movesLeft <= 0){
+            this.onLevelFail('Ходы закончились');
+            return;
+          }
+        }
+
+        // If no placements possible with current pieces => fail
+        if (!this.anyMovesLeft()){
+          if (this.mode === 'adventure'){
+            this.onLevelFail('Нет возможных ходов');
+          } else {
+            this.onGameOverEndless();
+          }
+        }
+      }
+
+      isLevelComplete(){
+        if (this.mode !== 'adventure') return false;
+        const L = LEVELS[this.levelIndex];
+        const okScore = this.score >= L.targetScore;
+        const okLines = this.linesTotal >= L.targetLines;
+        return okScore && okLines;
+      }
+
+      onLevelComplete(){
+        const L = LEVELS[this.levelIndex];
+        this.audio.levelUp();
+        this.fx.confetti();
+        this.toastCenter('УРОВЕНЬ ПРОЙДЕН!', 'emerald');
+
+        // Progress unlock
+        const next = L.id + 1;
+        if (next <= LEVELS.length){
+          this.progress.unlocked = Math.max(this.progress.unlocked || 1, next);
+          this.progress.lastLevel = next;
+        }
+        const prevBest = this.progress.bestByLevel[L.id] || 0;
+        this.progress.bestByLevel[L.id] = Math.max(prevBest, this.score);
+        this.save();
+
+        const body = `
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="glass rounded-2xl p-4">
+              <div class="text-sm font-black">${L.name}</div>
+              <div class="mt-1 text-xs text-slate-300">Уровень ${L.id} завершён.</div>
+              <div class="mt-3 space-y-2 text-sm">
+                <div class="flex items-center justify-between"><span class="text-slate-300">Очки</span><span class="font-black">${formatInt(this.score)}</span></div>
+                <div class="flex items-center justify-between"><span class="text-slate-300">Линии</span><span class="font-black">${formatInt(this.linesTotal)}</span></div>
+                <div class="flex items-center justify-between"><span class="text-slate-300">Ходы</span><span class="font-black">${formatInt(this.movesUsed)} / ${formatInt(L.moveLimit)}</span></div>
+                <div class="flex items-center justify-between"><span class="text-slate-300">Серия (макс.)</span><span class="font-black">${formatInt(this.streak)}</span></div>
+              </div>
+            </div>
+            <div class="glass rounded-2xl p-4">
+              <div class="text-sm font-black">Дальше</div>
+              <div class="mt-1 text-xs text-slate-300">Продолжайте путь или переиграйте ради большего результата.</div>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button id="mNext" class="btn px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/25 border border-emerald-400/30 font-bold">Следующий уровень</button>
+                <button id="mRetry" class="btn px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold">Переиграть</button>
+                <button id="mLevels" class="btn px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold">Карта уровней</button>
+              </div>
+              <div class="mt-4 text-xs text-slate-400">
+                Цель уровня: <span class="text-slate-200 font-bold">${formatInt(L.targetScore)} очков</span> и <span class="text-slate-200 font-bold">${formatInt(L.targetLines)} линий</span>.
+              </div>
+            </div>
+          </div>
+        `;
+
+        openModal({
+          title: 'Победа',
+          subtitle: `Уровень ${L.id} • ${L.name}`,
+          bodyHTML: body,
+          onClose: null
+        });
+
+        setTimeout(() => {
+          const nextBtn = $('#mNext');
+          const retryBtn = $('#mRetry');
+          const levelsBtn = $('#mLevels');
+          nextBtn?.addEventListener('click', () => {
+            closeModal();
+            const nid = clamp(L.id + 1, 1, LEVELS.length);
+            this.startLevel(nid);
+          });
+          retryBtn?.addEventListener('click', () => {
+            closeModal();
+            this.startLevel(L.id);
+          });
+          levelsBtn?.addEventListener('click', () => {
+            closeModal();
+            this.showLevelSelect();
+          });
+        }, 0);
+      }
+
+      onLevelFail(reason){
+        const L = LEVELS[this.levelIndex];
+        this.audio.invalid();
+        this.toastCenter('ПОРАЖЕНИЕ', 'rose');
+
+        const body = `
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="glass rounded-2xl p-4">
+              <div class="text-sm font-black">${reason}</div>
+              <div class="mt-1 text-xs text-slate-300">Уровень ${L.id}: ${L.name}</div>
+              <div class="mt-3 space-y-2 text-sm">
+                <div class="flex items-center justify-between"><span class="text-slate-300">Очки</span><span class="font-black">${formatInt(this.score)}</span></div>
+                <div class="flex items-center justify-between"><span class="text-slate-300">Линии</span><span class="font-black">${formatInt(this.linesTotal)} / ${formatInt(L.targetLines)}</span></div>
+                <div class="flex items-center justify-between"><span class="text-slate-300">Цель по очкам</span><span class="font-black">${formatInt(this.score)} / ${formatInt(L.targetScore)}</span></div>
+              </div>
+            </div>
+            <div class="glass rounded-2xl p-4">
+              <div class="text-sm font-black">Что дальше?</div>
+              <div class="mt-1 text-xs text-slate-300">Попробуйте другой порядок постановки фигур.</div>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button id="mRetry" class="btn px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/25 border border-emerald-400/30 font-bold">Повторить уровень</button>
+                <button id="mLevels" class="btn px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold">Карта уровней</button>
+                <button id="mEndless" class="btn px-3 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/20 border border-sky-400/25 font-bold">В бесконечный</button>
+              </div>
+              <div class="mt-4 text-xs text-slate-400">
+                Цель уровня: <span class="text-slate-200 font-bold">${formatInt(L.targetScore)} очков</span> и <span class="text-slate-200 font-bold">${formatInt(L.targetLines)} линий</span> за <span class="text-slate-200 font-bold">${formatInt(L.moveLimit)} ходов</span>.
+              </div>
+            </div>
+          </div>
+        `;
+
+        openModal({
+          title: 'Конец попытки',
+          subtitle: `${reason} • Уровень ${L.id}`,
+          bodyHTML: body
+        });
+
+        setTimeout(() => {
+          $('#mRetry')?.addEventListener('click', () => { closeModal(); this.startLevel(L.id); });
+          $('#mLevels')?.addEventListener('click', () => { closeModal(); this.showLevelSelect(); });
+          $('#mEndless')?.addEventListener('click', () => { closeModal(); this.setMode('endless'); this.newEndless(); });
+        }, 0);
+      }
+
+      onGameOverEndless(){
+        // Save best
+        this.bestEndless = Math.max(this.bestEndless, this.score);
+        const prev = this.progress.bestByLevel['endless'] || 0;
+        this.progress.bestByLevel['endless'] = Math.max(prev, this.score);
+        this.save();
+
+        const body = `
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="glass rounded-2xl p-4">
+              <div class="text-sm font-black">Нет возможных ходов</div>
+              <div class="mt-1 text-xs text-slate-300">Бесконечный режим</div>
+              <div class="mt-3 space-y-2 text-sm">
+                <div class="flex items-center justify-between"><span class="text-slate-300">Очки</span><span class="font-black">${formatInt(this.score)}</span></div>
+                <div class="flex items-center justify-between"><span class="text-slate-300">Линии</span><span class="font-black">${formatInt(this.linesTotal)}</span></div>
+                <div class="flex items-center justify-between"><span class="text-slate-300">Лучший результат</span><span class="font-black">${formatInt(this.progress.bestByLevel['endless'] || 0)}</span></div>
+              </div>
+            </div>
+            <div class="glass rounded-2xl p-4">
+              <div class="text-sm font-black">Ещё раз?</div>
+              <div class="mt-1 text-xs text-slate-300">Соберите новую серию комбо.</div>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button id="mAgain" class="btn px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/25 border border-emerald-400/30 font-bold">Новая игра</button>
+                <button id="mAdventure" class="btn px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold">В приключение</button>
+              </div>
+            </div>
+          </div>
+        `;
+
+        openModal({
+          title: 'Игра окончена',
+          subtitle: 'Бесконечный режим',
+          bodyHTML: body
+        });
+
+        setTimeout(() => {
+          $('#mAgain')?.addEventListener('click', () => { closeModal(); this.newEndless(); });
+          $('#mAdventure')?.addEventListener('click', () => { closeModal(); this.setMode('adventure'); this.startLevel(this.progress.lastLevel || 1); });
+        }, 0);
+      }
+
+      // ----- HUD
+      renderHUD(){
+        const bestEndless = this.progress.bestByLevel['endless'] || 0;
+        const L = (this.mode==='adventure') ? LEVELS[this.levelIndex] : null;
+        this.hud.score.textContent = formatInt(this.score);
+        this.hud.lines.textContent = formatInt(this.linesTotal);
+        this.hud.level.textContent = (this.mode==='adventure') ? String(L.id) : '∞';
+        this.hud.best.textContent = (this.mode==='adventure')
+          ? formatInt(this.progress.bestByLevel[L.id] || 0)
+          : formatInt(bestEndless);
+
+        if (this.mode === 'adventure'){
+          this.hud.objective.textContent = `${formatInt(L.targetScore)} очков • ${formatInt(L.targetLines)} линий`;
+          const left = Math.max(0, L.moveLimit - this.movesUsed);
+          this.hud.moves.textContent = `Ходы: ${formatInt(left)} / ${formatInt(L.moveLimit)}`;
+        } else {
+          this.hud.objective.textContent = 'Наберите максимум очков';
+          this.hud.moves.textContent = `Ходы: ${formatInt(this.movesUsed)}`;
+        }
+      }
+
+      // ----- Toasts
+      toastBoard(text, tone='sky'){
+        const r = this.boardEl.getBoundingClientRect();
+        const x = r.width * 0.5;
+        const y = r.height * 0.35;
+        this.toastAt(text, x, y, tone);
+      }
+      toastCenter(text, tone='sky'){
+        const r = this.boardEl.getBoundingClientRect();
+        const x = r.width * 0.5;
+        const y = r.height * 0.18;
+        this.toastAt(text, x, y, tone, true);
+      }
+      toastPoints(text, tone='rose'){
+        const r = this.boardEl.getBoundingClientRect();
+        const x = r.width * 0.5;
+        const y = r.height * 0.50;
+        this.toastAt(text, x, y, tone);
+      }
+      toastAt(text, x, y, tone='sky', big=false){
+        const el = document.createElement('div');
+        const c = {
+          sky: 'text-sky-300',
+          emerald: 'text-emerald-300',
+          rose: 'text-rose-300',
+          amber: 'text-amber-300',
+          slate: 'text-slate-200'
+        }[tone] || 'text-sky-300';
+        el.className = `floatText ${c} ${big ? 'text-2xl md:text-3xl' : 'text-xl md:text-2xl'}`;
+        el.textContent = text;
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        this.floatLayer.appendChild(el);
+        setTimeout(() => el.remove(), 950);
+      }
+
+      // ----- Menus
+      showHelp(){
+        const body = `
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="glass rounded-2xl p-4">
+              <div class="text-sm font-black">Как играть</div>
+              <ul class="mt-2 text-sm text-slate-300 list-disc pl-5 space-y-1">
+                <li>Перетаскивайте фигуры на поле 10×10.</li>
+                <li>Заполненная строка или колонка исчезает и приносит очки.</li>
+                <li>Очистка 2+ линий за ход даёт <span class="font-bold text-slate-100">комбо</span>.</li>
+                <li>Очистки подряд дают <span class="font-bold text-slate-100">серию</span> и повышают множитель.</li>
+                <li>Если ни одна из трёх фигур не помещается — попытка заканчивается.</li>
+              </ul>
+              <div class="mt-4 text-xs text-slate-400">Совет: планируйте место под длинные линии и «квадраты», чтобы не зажать поле.</div>
+            </div>
+            <div class="glass rounded-2xl p-4">
+              <div class="text-sm font-black">Приключение</div>
+              <div class="mt-2 text-sm text-slate-300">
+                В приключении у каждого уровня есть цель по очкам и линиям, а также лимит ходов.
+                <br/><br/>
+                Важно: последовательность фигур <span class="font-bold text-slate-100">детерминирована</span> (по сид-значению уровня).
+                Это делает уровни похожими на головоломки: можно найти более оптимальную стратегию.
+              </div>
+              <div class="mt-4 flex gap-2">
+                <button id="hLevels" class="btn px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold">Открыть карту</button>
+              </div>
+            </div>
+          </div>
+        `;
+        openModal({ title: 'Правила', subtitle: 'Быстро и по делу', bodyHTML: body });
+        setTimeout(() => { $('#hLevels')?.addEventListener('click', () => { closeModal(); this.showLevelSelect(); }); }, 0);
+      }
+
+      showPause(){
+        const L = (this.mode==='adventure') ? LEVELS[this.levelIndex] : null;
+        const subtitle = (this.mode==='adventure') ? `Уровень ${L.id}: ${L.name}` : 'Бесконечный режим';
+        const body = `
+          <div class="grid md:grid-cols-2 gap-4">
+            <div class="glass rounded-2xl p-4">
+              <div class="text-sm font-black">Пауза</div>
+              <div class="mt-2 space-y-2 text-sm">
+                <div class="flex items-center justify-between"><span class="text-slate-300">Очки</span><span class="font-black">${formatInt(this.score)}</span></div>
+                <div class="flex items-center justify-between"><span class="text-slate-300">Линии</span><span class="font-black">${formatInt(this.linesTotal)}</span></div>
+                <div class="flex items-center justify-between"><span class="text-slate-300">Ходы</span><span class="font-black">${formatInt(this.movesUsed)}</span></div>
+              </div>
+              <div class="mt-4 text-xs text-slate-400">Esc — закрыть меню.</div>
+            </div>
+            <div class="glass rounded-2xl p-4">
+              <div class="text-sm font-black">Действия</div>
+              <div class="mt-3 flex flex-wrap gap-2">
+                <button id="pRetry" class="btn px-3 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/25 border border-emerald-400/30 font-bold">Начать заново</button>
+                <button id="pLevels" class="btn px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold">Карта</button>
+                <button id="pHelp" class="btn px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold">Правила</button>
+              </div>
+            </div>
+          </div>
+        `;
+        openModal({ title: 'Меню', subtitle, bodyHTML: body });
+        setTimeout(() => {
+          $('#pRetry')?.addEventListener('click', () => { closeModal(); (this.mode==='adventure') ? this.startLevel(LEVELS[this.levelIndex].id) : this.newEndless(); });
+          $('#pLevels')?.addEventListener('click', () => { closeModal(); this.showLevelSelect(); });
+          $('#pHelp')?.addEventListener('click', () => { closeModal(); this.showHelp(); });
+        }, 0);
+      }
+
+      showLevelSelect(){
+        const unlocked = clamp(this.progress.unlocked || 1, 1, LEVELS.length);
+        const tiles = LEVELS.map(L => {
+          const isUnlocked = L.id <= unlocked;
+          const best = this.progress.bestByLevel[L.id] || 0;
+          const done = best > 0;
+          return `
+            <button data-lid="${L.id}" class="lvl btn text-left p-3 rounded-2xl border ${isUnlocked ? 'bg-white/8 hover:bg-white/12 border-white/10' : 'bg-white/5 border-white/5 opacity-50'}">
+              <div class="flex items-center justify-between">
+                <div class="font-black">${L.id}. ${L.name}</div>
+                <div class="text-xs ${done ? 'text-emerald-300' : 'text-slate-400'}">${done ? 'пройден' : (isUnlocked ? 'доступен' : 'закрыт')}</div>
+              </div>
+              <div class="mt-1 text-xs text-slate-300">Цель: ${formatInt(L.targetScore)} • ${formatInt(L.targetLines)} линий</div>
+              <div class="mt-1 text-xs text-slate-400">Ходы: ${formatInt(L.moveLimit)} • Лучшее: ${formatInt(best)}</div>
+            </button>
+          `;
+        }).join('');
+
+        const body = `
+          <div class="flex items-center justify-between">
+            <div>
+              <div class="text-sm font-black">Карта приключения</div>
+              <div class="text-xs text-slate-300">Открыто уровней: <span class="font-bold text-slate-100">${unlocked}</span> / ${LEVELS.length}</div>
+            </div>
+            <div class="flex gap-2">
+              <button id="lResume" class="btn px-3 py-2 rounded-xl bg-white/10 hover:bg-white/15 border border-white/10 font-bold">Продолжить</button>
+              <button id="lEndless" class="btn px-3 py-2 rounded-xl bg-sky-500/15 hover:bg-sky-500/20 border border-sky-400/25 font-bold">Бесконечный</button>
+            </div>
+          </div>
+          <div class="mt-4 grid md:grid-cols-2 gap-3">${tiles}</div>
+          <div class="mt-4 text-xs text-slate-400">
+            Подсказка: уровни используют фиксированный сид. Если вы застряли — попробуйте поменять порядок постановки фигур и охотиться за комбо.
+          </div>
+        `;
+
+        openModal({ title: 'Приключение', subtitle: 'Выбор уровня', bodyHTML: body });
+
+        setTimeout(() => {
+          $('#lResume')?.addEventListener('click', () => { closeModal(); });
+          $('#lEndless')?.addEventListener('click', () => { closeModal(); this.setMode('endless'); this.newEndless(); });
+
+          $$('#modalBody .lvl').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const lid = Number(btn.dataset.lid);
+              if (lid > unlocked) {
+                this.audio.invalid();
+                this.boardWrap.classList.remove('shake');
+                this.boardWrap.offsetHeight;
+                this.boardWrap.classList.add('shake');
+                return;
+              }
+              closeModal();
+              this.setMode('adventure');
+              this.startLevel(lid);
+            });
+          });
+        }, 0);
+      }
+
+      // ----- Drag & Drop
+      onPieceDown(e){
+        if (this.busy) return;
+        const pieceEl = e.target.closest('.piece');
+        if (!pieceEl) return;
+
+        const id = Number(pieceEl.dataset.id);
+        const p = this.getPieceById(id);
+        if (!p || p.used) return;
+
+        // Determine anchor cell inside piece
+        let aX = 0, aY = 0;
+        const targetCell = e.target.closest('.pCell.filled');
+        if (targetCell){
+          aX = Number(targetCell.dataset.gx);
+          aY = Number(targetCell.dataset.gy);
+        } else {
+          // fallback: first block
+          aX = p.shape[0].x;
+          aY = p.shape[0].y;
+        }
+
+        // Start drag
+        this.drag.active = true;
+        this.drag.pieceId = id;
+        this.drag.anchorGX = aX;
+        this.drag.anchorGY = aY;
+
+        // Offset for ghost
+        const r = pieceEl.getBoundingClientRect();
+        this.drag.offX = e.clientX - r.left;
+        this.drag.offY = e.clientY - r.top;
+
+        // Build ghost
+        this.ghostEl.innerHTML = '';
+        const ghost = pieceEl.cloneNode(true);
+        ghost.classList.remove('used');
+        ghost.style.transform = 'none';
+        ghost.style.filter = 'none';
+        ghost.style.opacity = '1';
+        ghost.style.width = `${r.width}px`;
+        ghost.style.height = `${r.height}px`;
+        this.ghostEl.appendChild(ghost);
+        this.ghostEl.classList.remove('hidden');
+        this.ghostEl.classList.add('ghostFloat');
+
+        this.updateGhost(e.clientX, e.clientY, true);
+        e.preventDefault();
+
+        // Capture pointer
+        try{ pieceEl.setPointerCapture(e.pointerId); }catch(err){}
+      }
+
+      updateGhost(clientX, clientY, first=false){
+        // Smooth follow
+        this.drag.lastX = clientX;
+        this.drag.lastY = clientY;
+        const x = clientX - this.drag.offX;
+        const y = clientY - this.drag.offY;
+        this.ghostEl.style.setProperty('--x', x+'px');
+        this.ghostEl.style.setProperty('--y', y+'px');
+        this.ghostEl.style.transform = `translate3d(${x}px, ${y}px, 0) scale(${first ? 1 : 1.0})`;
+      }
+
+      onPointerMove(e){
+        if (!this.drag.active) return;
+        this.updateGhost(e.clientX, e.clientY);
+
+        // Determine board hover
+        const hit = this.cellFromClient(e.clientX, e.clientY);
+        const p = this.getPieceById(this.drag.pieceId);
+        if (!p){
+          this.clearPreview();
+          return;
+        }
+
+        if (!hit){
+          this.clearPreview();
+          this.drag.valid = false;
+          return;
+        }
+
+        // Convert hover cell + anchor => piece origin
+        const bx = hit.x - this.drag.anchorGX;
+        const by = hit.y - this.drag.anchorGY;
+
+        this.drag.placeX = bx;
+        this.drag.placeY = by;
+
+        const valid = this.canPlaceAt(p, bx, by);
+        this.drag.valid = valid;
+
+        // Preview
+        this.clearPreview();
+        const cls = valid ? 'previewValid' : 'previewInvalid';
+        for (const s of p.shape){
+          const x = bx + s.x;
+          const y = by + s.y;
+          if (x<0||y<0||x>=BOARD_N||y>=BOARD_N) continue;
+          const idx = y*BOARD_N + x;
+          this.cells[idx].classList.add(cls);
+          this.drag.preview.push(idx);
+        }
+
+        e.preventDefault();
+      }
+
+      onPointerUp(e){
+        if (!this.drag.active) return;
+        const p = this.getPieceById(this.drag.pieceId);
+        this.drag.active = false;
+        this.clearPreview();
+        this.ghostEl.classList.add('hidden');
+        this.ghostEl.innerHTML = '';
+
+        if (!p || p.used) return;
+        if (this.busy) return;
+
+        // Only place if released over board and valid
+        const hit = this.cellFromClient(e.clientX, e.clientY);
+        if (hit && this.drag.valid){
+          const bx = this.drag.placeX;
+          const by = this.drag.placeY;
+          if (this.canPlaceAt(p, bx, by)){
+            this.placePiece(p, bx, by);
+            return;
+          }
+        }
+
+        // Invalid drop
+        this.audio.invalid();
+        this.boardWrap.classList.remove('shake');
+        this.boardWrap.offsetHeight;
+        this.boardWrap.classList.add('shake');
+      }
+
+      // ----- Misc
+      showHintForNoMoves(){
+        // If no moves left, it is handled by fail/gameover.
+      }
+    }
+
+    // Boot
+    const game = new BlockBlast();
+
+    // Expose for debugging in console
+    window.__blockBlast = game;
+
+    // Modal close
+    $('#modalClose').addEventListener('click', closeModal);
+
+  })();
+  </script>
+</body>
+</html>
